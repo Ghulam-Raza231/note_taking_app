@@ -1,7 +1,11 @@
 package com.notepad.notetaking;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
@@ -85,19 +89,43 @@ public class AddNoteActivity extends AppCompatActivity {
             return;
         }
 
+        long noteTimestamp = System.currentTimeMillis();
+        int notificationId = (int) noteTimestamp; // Using timestamp for a unique enough ID
+
         if (isEditMode) {
             existingNote.setTitle(title);
             existingNote.setContent(content);
-            existingNote.setTimestamp(System.currentTimeMillis());
+            existingNote.setTimestamp(noteTimestamp);
             AppDatabase.getInstance(this).noteDao().update(existingNote);
         } else {
-            Note newNote = new Note(title, content, System.currentTimeMillis(), 0);
+            Note newNote = new Note(title, content, noteTimestamp, 0);
             AppDatabase.getInstance(this).noteDao().insert(newNote);
             Intent resultIntent = new Intent();
             resultIntent.putExtra("newNoteTitle", title);
             setResult(RESULT_OK, resultIntent);
         }
 
+        // Schedule notification
+        scheduleNotification(title, content, notificationId, 5000); // 5 seconds delay
+
         finish();
+    }
+
+    private void scheduleNotification(String title, String content, int notificationId, long delay) {
+        Intent notificationIntent = new Intent(this, NotificationReceiver.class);
+        notificationIntent.putExtra("note_title", title);
+        notificationIntent.putExtra("note_content", content);
+        notificationIntent.putExtra("notification_id", notificationId);
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                this,
+                notificationId,
+                notificationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        long futureInMillis = SystemClock.elapsedRealtime() + delay;
+        alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, futureInMillis, pendingIntent);
     }
 }
